@@ -14,9 +14,9 @@ def speak(text):
 
 def set_voice(name):
     global cv
-    if "jarvis" in name.lower():
+    if "orion" in name.lower():
         cv = voices[0].id
-    elif "emma" in name.lower():
+    elif "eva" in name.lower():
         cv = voices[1].id
 
 def listen_for_wakeWord():
@@ -27,8 +27,8 @@ def listen_for_wakeWord():
                 audio = r.listen(source, timeout=4, phrase_time_limit=2)
             text = r.recognize_google(audio)
             print(text)
-            if "jarvis" in text.lower(): return "jarvis"
-            elif "emma" in text.lower(): return "emma"
+            if "orion" in text.lower(): return "orion"
+            elif "eva" in text.lower(): return "eva"
         
         except (sr.UnknownValueError, sr.WaitTimeoutError):
             pass
@@ -41,7 +41,7 @@ def listen_for_command(name):
         try:
             with sr.Microphone() as source:
                 print(f"{name.title()} active...")
-                audio = r.listen(source,timeout=4, phrase_time_limit= 8)
+                audio = r.listen(source,timeout=4, phrase_time_limit= 15)
             text = r.recognize_google(audio)
             return text
         

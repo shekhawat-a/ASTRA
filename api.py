@@ -6,15 +6,41 @@ from yt_dlp import YoutubeDL
 from dotenv import load_dotenv
 from deep_translator import GoogleTranslator as gt
 from google import genai
+from google.genai import types
 from groq import Groq
 from memory import get_history, clear_history, add_to_memory
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
 
 load_dotenv()
+
+SMTP_SERVER = "smtp.gmail.com"
+SMTP_PORT = 587
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 NEWS_API_KEY = os.getenv("NEWS_API_KEY")
 WEATHER_API_KEY = os.getenv("WEATHER_API_KEY")
+EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
+EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
+
+
+def _extract_text(response):
+    if getattr(response, 'text', None):
+        return response.text
+
+    candidates = getattr(response, 'candidates', None) or []
+    for candidate in candidates:
+        parts = getattr(candidate, 'content', None)
+        parts = getattr(parts, 'parts', []) or []
+        for part in parts:
+            if getattr(part, 'text', None):
+                return part.text
+    return ""
+
+
 
 def translate(command):
     try:
@@ -60,6 +86,28 @@ def get_weather(city):
         return {"error": f"Could not find weather data for '{city}'."}
     except Exception as e:
         return {"error": f"Weather error: {str(e)}"}
+
+def email(subject, body, recipient):
+    try:
+        message = MIMEMultipart()
+        message["From"] = EMAIL_ADDRESS
+        message["To"] = recipient
+        message["Subject"] = subject
+        message.attach(MIMEText(body, "html"))
+
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+            server.starttls()
+            server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
+            server.sendmail(EMAIL_ADDRESS, recipient, message.as_string())
+
+        return f"Email sent to {recipient} successfully."
+    
+    except Exception as e:
+        print(f"[Email Error]: {e}")
+        return f"failed to send email to {recipient}. Please try again."
+
+
+    
     
 def classify_intent(command):
     client = Groq(
@@ -73,12 +121,13 @@ def classify_intent(command):
                 "content": """
                             You are an intent classifier for a voice assistant.
                             Classify the user command into exactly one of these categories:
-                            play, weather, news, search, chat, knowledge
+                            play, weather, news, search, chat, knowledge, email
 
                             If the category is weather, also extract the city name.
                             if category is play, also extract the song name.
                             if category is news and a city or country is mentioned in it, also extract the city or country name.
                             if category is search, also extract the platforn to search on along with the query to be searched
+                            if the category is email, extract the recipient email and generate a polished, professional subject line (4-10 words)
                             Always return only valid JSON like this:
                                         Weather in Jaipur
                                         {"category":"weather","city":"Jaipur"}
@@ -91,6 +140,9 @@ def classify_intent(command):
 
                                         Who is Newton?
                                         {"category":"knowledge"}
+
+                                        Send an email to raj@gmail.com for tomorrow's meeting
+                                        {"category":"email", "recipient":"raj@gmail.com", "subject":"Agenda and Preparation for Tomorrow's Meeting"}
 
                                         JSON only. No markdown. No explanation.
                             """
@@ -195,6 +247,7 @@ def summarize_news(headlines):
                 Summarize these in 3-4 conversational sentences as if speaking out loud.
                 Do not use bullet points or markdown. Make it sound natural and engaging.
                 """
+
     return gemini_request(prompt)
 
 def answer_knowledge(question):
@@ -218,3 +271,37 @@ def answer_knowledge(question):
     add_to_memory("user", question)
     add_to_memory("assistant",response)
     return response
+
+def generate_email(subject, recipient):
+    if not subject and not recipient:
+        return "Please provide both a subject and a recipient email address."
+    elif not subject:
+        return "Please provide a subject for the email."
+    elif not recipient:
+        return "Please provide a recipient email address."
+
+    history_text = ""
+    history = get_history()
+
+    if history:
+        history_text = "\n".join([f"{'User' if m['role'] == 'user' else 'ASTRA'}:{m['content']}"
+                                  for m in history[-6:]
+                                  ])
+        
+    prompt = f"""
+                Act as an expert copywriter. Write a natural email body based on the context, subject, and recipient.
+
+                Previous Conversation Context:
+                {history_text if history_text else "No prior context available."}
+
+                Subject: {subject}
+                Recipient: {recipient}
+                Output ONLY raw HTML. No conversational filler. No subject line. NO markdown (use <b>, <br>, <p>, <ul> instead)
+            """
+    body = gemini_request(prompt)
+    result = email(subject, body, recipient)
+
+    add_to_memory("user", f"send an email to {recipient} with subject '{subject}'")
+    add_to_memory("assistant", f"Email sent to {recipient} with subject '{subject}'")
+
+    return result

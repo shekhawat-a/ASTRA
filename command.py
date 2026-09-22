@@ -3,6 +3,7 @@ from yt_dlp import YoutubeDL
 from voice import speak
 from memory import add_to_memory
 from api import (
+    generate_email,
     translate,
     get_news,
     get_weather,
@@ -114,6 +115,16 @@ def llm(result, command):
             speak("Let me think about that...")
             first_time = False
         speak(answer_knowledge(command))
+
+    elif intent == "email":
+        if not result.get('subject') or not result.get('recipient'):
+            speak("I need both a subject and a recipient to generate an email. Please provide them.")
+            return
+        subject = result['subject']
+        recipient = result['recipient']
+        speak("Genrating the email...")
+        speak(generate_email(subject, recipient))
+        
 
 def process_command(command):
     result = classify_intent(command)

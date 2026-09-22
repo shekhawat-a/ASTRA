@@ -5,7 +5,7 @@ from memory import clear_history
 
 def main():
     speak("Initializing Astra...")
-    speak("Say 'JARVIS or EMMA' to wake me up.")
+    speak("Say 'Orion' or 'EVA' to wake me up.")
 
     flag_voice = True
     current_name = None
@@ -20,6 +20,7 @@ def main():
         elif name != current_name:
             speak(f"Switching to {name.title()}.")
             current_name = name
+            set_voice(name)
             clear_history()
 
         while True:
@@ -32,7 +33,7 @@ def main():
                 continue
 
             elif any(word in command.lower() for word in EXIT_WORDS):
-                speak(f"Going to sleep. Say 'JARVIS' or 'EMMA' to wake me up again.")
+                speak(f"Going to sleep. Say 'ORION' or 'EVA' to wake me up again.")
                 clear_history()
                 break
 
